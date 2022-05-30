@@ -65,5 +65,5 @@ class Max10:
     def set_steering(self, angle):
         # Set servo position based on given angle, clamp steering angle to what the servo can achieve
         duty = map_to_range(clamp(angle, STEERING_RANGE[0], STEERING_RANGE[1]), STEERING_RANGE[0], STEERING_RANGE[1]
-                            , int(((1.1 / self.period) * MAX_DUTY)), int(((1.9 / self.period) * MAX_DUTY)))
+                            , int(((1.0 / self.period) * MAX_DUTY)), int(((2.0 / self.period) * MAX_DUTY)))
         self.servo_pwm.duty_u16(duty)
