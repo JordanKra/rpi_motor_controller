@@ -1,75 +1,69 @@
 # Class for controlling the Hobbywing EZRUN Max 10 ESC
 from time import sleep
 from machine import Pin, PWM
+
 MAX_DUTY = 65535
+# Range of angles the steering wheels can achieve, assumes 90 degrees is the middle of travel
+STEERING_RANGE = (65, 115)
+MAX_SPEED_PERCENTAGE = 0.40
 
 
+# Python implementation of the arduino map function:
+# https://www.arduino.cc/reference/en/language/functions/math/map/
 def map_to_range(x, in_min, in_max, out_min, out_max):
-    #Python implementation of the arduino map function: https://www.arduino.cc/reference/en/language/functions/math/map/
     return int((x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min)
+
+
+# Why is this not a builtin function?
+def clamp(n, smallest, largest):
+    return max(smallest, min(n, largest))
 
 
 class Max10:
     def __init__(self, motor_pin, servo_pin, freq):
-        #Setup motor PWM
+        # Setup motor PWM
         self.motor_pwm = PWM(Pin(motor_pin))
         self.motor_pwm.freq(freq)
 
-        #Setup servo PWM
+        # Setup servo PWM
         self.servo_pwm = PWM(Pin(servo_pin))
         self.servo_pwm.freq(freq)
 
-        #Status LED pin setup
+        # TODO: Make this work for frequency values that are < 0.01 seconds
+        self.period = (1 / freq) * 1000
+
+        # Status LED pin setup
         self.led = Pin(25, Pin.OUT)
 
     def arm_esc(self):
-        #According to to the docs this should just be neutral, full forward, then full reverse
-        #Calculating the duty cycle is just doing   (desired_width / period) * 100%
-        #Netural
-        self.set_netural()
-        sleep((20*2)/1000)
+        # Arm the esc by sending neutral, full forward, then full reverse
+        self.set_neutral()
+        sleep((20 * 2) / 1000)
         self.set_forward(1.0)
-        sleep((20*2)/1000)
+        sleep((20 * 2) / 1000)
         self.set_reverse(1.0)
         sleep(3.0)
 
-    def set_netural(self):
-        #set pin to netural
-        self.motor_pwm.duty_u16(int((1.5/20.0) * MAX_DUTY))
+    def set_neutral(self):
+        # set pin to neutral
+        self.motor_pwm.duty_u16(int((1.5 / self.period) * MAX_DUTY))
 
     def set_forward(self, percent):
         # set pin to a percentage of forward
-        self.motor_pwm.duty_u16(int(((1.5 + (percent * 0.5)) / 20.0) * MAX_DUTY))
+        # Calculating the duty cycle is just doing (desired_width / period) * 100%
+        self.motor_pwm.duty_u16(int(((1.5 + (clamp(percent, 0.0, MAX_SPEED_PERCENTAGE) * 0.5)) / self.period) * MAX_DUTY))
 
     def set_reverse(self, percent):
         # set the pin to a percentage of reverse
-        self.motor_pwm.duty_u16(int(((1.5 - (0.1 * 0.5)) / 20.0) * MAX_DUTY))
-        sleep(20*2/1000)
-        self.set_netural()
-        sleep(1.0)
-        self.motor_pwm.duty_u16(int(((1.5 - (percent * 0.5)) / 20.0) * MAX_DUTY))
-
-    def servo_test(self):
-        self.servo_pwm.duty_u16(int((1.8/20.0) * MAX_DUTY))
-        sleep(2.0)
-        self.servo_pwm.duty_u16(int((1.0/20)*MAX_DUTY))
-        sleep(2.0)
-        self.servo_pwm.duty_u16(int((1.4/20.0) * MAX_DUTY))
-        sleep(2.0)
+        # Calculating the duty cycle is just doing (desired_width / period) * 100%
+        self.motor_pwm.duty_u16(int(((1.5 - (0.1 * 0.5)) / self.period) * MAX_DUTY))
+        sleep(20 * 4 / 1000)
+        self.set_neutral()
+        sleep(4.0)
+        self.motor_pwm.duty_u16(int(((1.5 - (clamp(percent, 0.0, MAX_SPEED_PERCENTAGE) * 0.5)) / self.period) * MAX_DUTY))
 
     def set_steering(self, angle):
-        #Set servo position based on given angle
-        duty = int(map_to_range(angle, 0, 180, int(((1.0/20.0)*MAX_DUTY)), int(((2.0/20.0)*MAX_DUTY))))
+        # Set servo position based on given angle, clamp steering angle to what the servo can achieve
+        duty = map_to_range(clamp(angle, STEERING_RANGE[0], STEERING_RANGE[1]), STEERING_RANGE[0], STEERING_RANGE[1]
+                            , int(((1.1 / self.period) * MAX_DUTY)), int(((1.9 / self.period) * MAX_DUTY)))
         self.servo_pwm.duty_u16(duty)
-
-
-    def motor_test(self):
-        self.led.value(1)
-        self.set_forward(0.10)
-        sleep(2.0)
-        self.set_netural()
-        sleep(2.0)
-        self.set_reverse(0.10)
-        sleep(2.0)
-
-
